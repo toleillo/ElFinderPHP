@@ -3,7 +3,7 @@ ElFinderPHP
 [![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/?branch=master)
 [![Build Status](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/badges/build.png?b=master)](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/build-status/master)
 [![Code Coverage](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/badges/coverage.png?b=master)](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/?branch=master)
-
+[![Build Status](https://travis-ci.org/helios-ag/ElFinderPHP.svg)](https://travis-ci.org/helios-ag/ElFinderPHP)
 
 ElFinderPHP is PHP 5.3 modification of server side ElFinder.
 
