@@ -583,13 +583,14 @@ abstract class ElFinderVolumeDriver {
      * Return true if volume available for read or write,
      * false - otherwise
      *
+     * @param array $opts
      * @return bool
      * @author Dmitry (dio) Levashov
      * @author Alexey Sukhotin
-     **/
+     */
     public function mount(array $opts) {
         if (!isset($opts['path']) || $opts['path'] === '') {
-            return $this->setError('Path undefined.');;
+            return $this->setError('Path undefined.');
         }
 
         $this->options = array_merge($this->options, $opts);
@@ -731,7 +732,6 @@ abstract class ElFinderVolumeDriver {
 
         $this->rootName = empty($this->options['alias']) ? $this->_basename($this->root) : $this->options['alias'];
         $root = $this->stat($this->root);
-
         if (!$root) {
             return $this->setError('Root folder does not exists.');
         }
@@ -1038,22 +1038,14 @@ abstract class ElFinderVolumeDriver {
      * Return file info or false on error
      *
      * @param  string $hash file hash
-     * @internal param bool $realpath add realpath field to file info
      * @return array|false
+     * @internal param bool $realpath add realpath field to file info
      * @author Dmitry (dio) Levashov
      */
     public function file($hash) {
         $path = $this->decode($hash);
 
-        return ($file = $this->stat($path)) ? $file : $this->setError(ElFinder::ERROR_FILE_NOT_FOUND);
-
-        if (($file = $this->stat($path)) != false) {
-            if ($realpath) {
-                $file['realpath'] = $path;
-            }
-            return $file;
-        }
-        return $this->setError(ElFinder::ERROR_FILE_NOT_FOUND);
+        return ($file = $this->stat($path)) ? $file : $this->setError(elFinder::ERROR_FILE_NOT_FOUND);
     }
 
     /**
@@ -1061,7 +1053,6 @@ abstract class ElFinderVolumeDriver {
      *
      * @param  string $hash folder hash
      * @param bool $resolveLink
-     * @internal param bool $hidden return hidden file info
      * @return array|false
      * @author Dmitry (dio) Levashov
      */
