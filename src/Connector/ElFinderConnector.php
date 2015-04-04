@@ -2,7 +2,12 @@
 
 namespace FM\ElFinderPHP\Connector;
 
+use FM\ElFinderPHP\Driver\ElFinderVolumeDriver;
 use FM\ElFinderPHP\ElFinder;
+use Symfony\Component\HttpFoundation\FileBag;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Monolog\Logger;
 
 /**
  * Default ElFinder connector
@@ -10,12 +15,23 @@ use FM\ElFinderPHP\ElFinder;
  * @author Dmitry (dio) Levashov
  **/
 class ElFinderConnector {
+
     /**
-     * elFinder instance
+     * ElFinder instance
      *
-     * @var elFinder
+     * @var ElFinder
      **/
-    protected $elFinder;
+    protected $ElFinder;
+
+    /**
+     * @var Logger
+     */
+    protected $log;
+
+    /**
+     * @var
+     */
+    protected $defaultVolume;
 
     /**
      * Options
@@ -25,104 +41,208 @@ class ElFinderConnector {
     protected $options = array();
 
     /**
+     * @var array of ElFinderVolumeDriver
+     */
+    protected $volumes = array();
+
+    /**
      * undocumented class variable
      *
      * @var string
      **/
     protected $header = 'Content-Type: application/json';
 
-
     /**
      * Constructor
      *
-     * @param $elFinder
+     * @param array $options
      * @param bool $debug
-     * @return \FM\ElFinderPHP\Connector\ElFinderConnector
-     * @author Dmitry (dio) Levashov
      */
-    public function __construct($elFinder, $debug=false) {
+    public function __construct(array $options, $debug = false)
+    {
+        $this->request = Request::createFromGlobals();
+        $this->options = $options;
+        if (!isset($this->log)) {
+            $this->log = new Logger('ElFinder');
+        }
 
-        $this->elFinder = $elFinder;
         if ($debug) {
             $this->header = 'Content-Type: text/html; charset=utf-8';
         }
     }
 
     /**
-     * Execute elFinder command and output result
-     *
-     * @return void
-     * @author Nicolas MURE
-     **/
-    public function run() {
-        exit(json_encode($this->execute()));
+     * @param $json
+     * @return array
+     */
+    public function run($json = false)
+    {
+        $this->getElFinder();
+        return $json ? json_encode($this->executeCommand($this->request)) : $this->executeCommand($this->request);
     }
 
     /**
-     * Execute elFinder command and returns result
+     * @returns ElFinder
+     */
+    public function getElFinder()
+    {
+        if(!$this->volumes) {
+            $this->setVolumes($this->mountVolumes($this->options));
+        }
+
+        if (!$this->ElFinder) {
+            $ElFinder = new ElFinder(
+                $this->options,
+                $this->volumes,
+                $this->getLogger());
+            $this->setElFinder($ElFinder);
+
+            $this->ElFinder->setDefault($this->getDefaultVolume());
+        }
+
+        return $this->ElFinder;
+    }
+
+    /**
+     * @return Logger
+     */
+    protected function getLogger()
+    {
+        return $this->log;
+    }
+
+    /**
+     * @param $ElFinder
+     * @return $this
+     */
+    public function setElFinder($ElFinder)
+    {
+        $this->ElFinder = $ElFinder;
+        return $this;
+    }
+
+
+    /**
+     * @param $class
+     * @return ElFinderVolumeDriver
+     */
+    protected function createVolumeDriver($class)
+    {
+        return class_exists($class) ? new $class : false;
+    }
+
+    /**
+     * Mount volumes
      *
+     * Instantiate corresponding driver class and
+     * add it to the list of volumes.
+     *
+     * @param $options
+     * @return array
+     */
+    protected function mountVolumes($options)
+    {
+        $volumes = array();
+        foreach ($options['roots'] as $i => $o) {
+            $class = (isset($o['driver']) ? $o['driver'] : '');
+            if ($volume = $this->createVolumeDriver($class)) {
+                try {
+                    if ($volume->mount($o)) {
+                        $id = $volume->id();
+                        $volumes[$id] = $volume;
+                        if (!$this->getDefaultVolume() && $volume->isReadable()) {
+                            $this->setDefaultVolume($volume);
+                        }
+                    } else {
+                        $this->log->addError('Driver "' . $class . '" : ' . implode(' ', $volume->error()));
+                    }
+                } catch (\Exception $e) {
+                    $this->log->addError('Driver "'.$class.'" : '.$e->getMessage());
+                }
+            } else {
+                $this->log->addError('Driver "'.$class.'" does not exists');
+            }
+        }
+
+        return array_merge($this->volumes, $volumes);
+    }
+
+    /**
+     * Execute ElFinder command and returns result
+     *
+     * @param Request $request
      * @return array
      * @author Dmitry (dio) Levashov
-     **/
-    public function execute() {
-        $isPost = $_SERVER["REQUEST_METHOD"] == 'POST';
-        $src    = $_SERVER["REQUEST_METHOD"] == 'POST' ? $_POST : $_GET;
+     */
+    public function executeCommand(Request $request)
+    {
+        $isPost = $request->isMethod('POST');
+        $src    = $request->isMethod('POST') ? $request->request : $request->query;
         if ($isPost && !$src && $rawPostData = @file_get_contents('php://input')) {
             // for support IE XDomainRequest()
             $parts = explode('&', $rawPostData);
             foreach($parts as $part) {
                 list($key, $value) = array_pad(explode('=', $part), 2, '');
-                $src[$key] = rawurldecode($value);
+                $src->set($key, rawurldecode($value));
             }
-            $_POST = $src;
-            $_REQUEST = array_merge_recursive($src, $_REQUEST);
-        }
-        $cmd    = isset($src['cmd']) ? $src['cmd'] : '';
-        $args   = array();
+            $request->request = $src;
 
+        }
+        $cmd  = $src->has('cmd') ? $src->get('cmd') : '';
+        $args = array();
         if (!function_exists('json_encode')) {
-            $error = $this->elFinder->error(elFinder::ERROR_CONF, elFinder::ERROR_CONF_NO_JSON);
-            return $this->output(array('error' => '{"error":["'.implode('","', $error).'"]}', 'raw' => true));
+            $error = $this->ElFinder->error(ElFinder::ERROR_CONF, ElFinder::ERROR_CONF_NO_JSON);
+            return $this->output(
+                array(
+                    'error' => '{"error":["'.implode('","', $error).'"]}',
+                    'raw' => true)
+            );
         }
 
-        if (!$this->elFinder->loaded()) {
-            return $this->output(array('error' => $this->elFinder->error(elFinder::ERROR_CONF, elFinder::ERROR_CONF_NO_VOL), 'debug' => $this->elFinder->mountErrors));
+        if (!$this->ElFinder->isLoaded()) {
+            $this->log->addError('Error mounting volumes');
+            return $this->output(
+                array('error' => $this->ElFinder->error(ElFinder::ERROR_CONF, ElFinder::ERROR_CONF_NO_VOL))
+            );
         }
 
         // telepat_mode: on
         if (!$cmd && $isPost) {
-            return $this->output(array('error' => $this->elFinder->error(elFinder::ERROR_UPLOAD, elFinder::ERROR_UPLOAD_TOTAL_SIZE), 'header' => 'Content-Type: text/html'));
+            var_dump($src->has('cmd'));
+            return $this->output(
+                array(
+                    'error' => $this->ElFinder->error(ElFinder::ERROR_UPLOAD, ElFinder::ERROR_UPLOAD_TOTAL_SIZE),
+                    'header' => 'Content-Type: text/html')
+            );
         }
         // telepat_mode: off
-
-        if (!$this->elFinder->commandExists($cmd)) {
-            return $this->output(array('error' => $this->elFinder->error(elFinder::ERROR_UNKNOWN_CMD)));
+        if (!$this->ElFinder->commandExists($cmd)) {
+            return $this->output(array('error' => $this->ElFinder->error(ElFinder::ERROR_UNKNOWN_CMD)));
         }
 
-        // collect required arguments to exec command
-        foreach ($this->elFinder->commandArgsList($cmd) as $name => $req) {
+        // collect required arguments to execute command
+        foreach ($this->ElFinder->commandArgsList($cmd) as $name => $req) {
             $arg = $name == 'FILES'
-                ? $_FILES
-                : (isset($src[$name]) ? $src[$name] : '');
+                ?  $this->getFiles($request->files)//was $_FILES
+                : ($src->has($name) ? $src->get($name) : '');
 
             if (!is_array($arg)) {
                 $arg = trim($arg);
             }
             if ($req && (!isset($arg) || $arg === '')) {
-                return $this->output(array('error' => $this->elFinder->error(elFinder::ERROR_INV_PARAMS, $cmd)));
+                return $this->output(array('error' => $this->ElFinder->error(ElFinder::ERROR_INV_PARAMS, $cmd)));
             }
             $args[$name] = $arg;
         }
+        $args['debug'] = $src->has('debug') ? !!$src->get('debug') : false;
 
-        $args['debug'] = isset($src['debug']) ? !!$src['debug'] : false;
-
-        return $this->output($this->elFinder->exec($cmd, $this->input_filter($args)));
+        return $this->output($this->ElFinder->exec($cmd, $this->inputFilter($args)));
     }
 
     /**
      * Output data to array
      *
-     * @param  array  data to output
+     * @param  array
      * @return array
      * @author Dmitry (dio) Levashov
      **/
@@ -130,13 +250,17 @@ class ElFinderConnector {
         $header = isset($data['header']) ? $data['header'] : $this->header;
         unset($data['header']);
         if ($header) {
+            $response = new Response();
             if (is_array($header)) {
                 foreach ($header as $h) {
-                    header($h);
+                    $header_param = explode(":",$h);
+                    $response->headers->set($header_param[0], $header_param[1]);
                 }
             } else {
-                header($header);
+                $header_param = explode(":",$header);
+                $response->headers->set($header_param[0], $header_param[1]);
             }
+            $response->send();
         }
 
         if (isset($data['pointer'])) {
@@ -157,23 +281,96 @@ class ElFinderConnector {
     }
 
     /**
-     * Remove null & stripslashes applies on "magic_quotes_gpc"
+     * Remove null & strip slashes applies on "magic_quotes_gpc"
      *
      * @param  mixed  $args
      * @return mixed
      * @author Naoki Sawada
      */
-    private function input_filter($args) {
+    private function inputFilter($args) {
         static $magic_quotes_gpc = NULL;
 
         if ($magic_quotes_gpc === NULL)
             $magic_quotes_gpc = (version_compare(PHP_VERSION, '5.4', '<') && get_magic_quotes_gpc());
 
         if (is_array($args)) {
-            return array_map(array(& $this, 'input_filter'), $args);
+            return array_map(array(& $this, 'inputFilter'), $args);
         }
         $res = str_replace("\0", '', $args);
         $magic_quotes_gpc && ($res = stripslashes($res));
         return $res;
+    }
+
+    /**
+     * @param $filebag
+     * @return array
+     * Requires refactoring in Elfinder
+     */
+    private function getFiles(FileBag $filebag)
+    {
+        $result = array();
+        foreach($filebag as $files) {
+            foreach($files as $file) {
+                $result['upload']['name'][]     = $file->getClientOriginalName();
+                $result['upload']['tmp_name'][] = $file->getRealPath();
+                $result['upload']['type'][]     = $file->getMimeType();
+                $result['upload']['error'][]    = $file->getError();
+            }
+
+        }
+        return $result;
+    }
+
+    /**
+     * @param mixed $defaultVolume
+     * @return ElFinderConnector
+     */
+    public function setDefaultVolume($defaultVolume)
+    {
+        $this->defaultVolume = $defaultVolume;
+    }
+
+    /**
+     * @return mixed
+     */
+    public function getDefaultVolume()
+    {
+        return $this->defaultVolume;
+    }
+
+    /**
+     * @return Logger
+     */
+    public function getLog()
+    {
+        return $this->log;
+    }
+
+    /**
+     * @param Logger $log
+     * @return Logger
+     */
+    public function setLog($log)
+    {
+        $this->log = $log;
+        return $this->log;
+    }
+
+    /**
+     * @param array $volumes
+     * @return ElFinderConnector
+     */
+    public function setVolumes($volumes)
+    {
+        $this->volumes = $volumes;
+        return $this;
+    }
+
+    /**
+     * @return array
+     */
+    public function getVolumes()
+    {
+        return $this->volumes;
     }
 }
