@@ -86,7 +86,7 @@ class ElFinderVolumeFlysystem extends ElFinderVolumeDriver {
 
         $parentUrl = defined('ELFINDER_IMG_PARENT_URL')? (rtrim(ELFINDER_IMG_PARENT_URL, '/').'/') : '';
 
-        return $parentUrl . 'img/' . $icon;
+        return $parentUrl . '/assets/elfinder/img/' . $icon;
     }
 
     /**

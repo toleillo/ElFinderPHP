@@ -27,6 +27,16 @@ class ElFinderVolumeLocalFileSystem extends ElFinderVolumeDriver {
 	 **/
 	protected $archiveSize = 0;
 
+	/**
+	 * @var
+	 */
+	protected $aroot;
+
+	/**
+	 * @var
+	 */
+	protected $quarantine;
+
     /**
      * Constructor
      * Extend options with required fields
@@ -482,7 +492,7 @@ class ElFinderVolumeLocalFileSystem extends ElFinderVolumeDriver {
 	 * Return new file path or false.
 	 *
 	 * @param  string  $source  source file path
-	 * @param  string  $target  target dir path
+	 * @param  string  $targetDir  target dir path
 	 * @param  string  $name    file name
 	 * @return string|bool
 	 * @author Dmitry (dio) Levashov
