@@ -1,6 +1,7 @@
 language: php
 
 php:
+  - 5.3.10
   - 5.4
   - 5.5
   - 5.6
@@ -14,9 +15,14 @@ matrix:
       - 7.0
   fast_finish: true
 
-before_script: 
-  - travis_retry composer self-update
-  - travis_retry composer install --dev --prefer-source
+install:
+    - composer self-update
+
+script: phpunit --coverage-clover=clover.xml
+
+after_script:
+  - wget https://scrutinizer-ci.com/ocular.phar
+  - php ocular.phar code-coverage:upload --format=php-clover clover.xml
 
 notifications:
   email: helios.ag@gmail.com

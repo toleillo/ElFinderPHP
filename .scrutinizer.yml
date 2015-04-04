@@ -1,5 +1,5 @@
 filter:
-    paths: [lib/*]
+    paths: [src/*]
     excluded_paths: [vendor/*, tests/*]
 
 tools:
