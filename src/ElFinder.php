@@ -2,6 +2,10 @@
 
 namespace FM\ElFinderPHP;
 
+use FM\ElFinderPHP\Driver\ElFinderVolumeDriver;
+use Monolog\Logger;
+use Symfony\Component\Config\Definition\Exception\Exception;
+
 /**
  * elFinder - file manager for web.
  * Core class.
@@ -12,6 +16,66 @@ namespace FM\ElFinderPHP;
  * @author Alexey Sukhotin
  **/
 class ElFinder {
+
+    // Errors messages
+    const ERROR_UNKNOWN             = 'errUnknown';
+    const ERROR_UNKNOWN_CMD         = 'errUnknownCmd';
+    const ERROR_CONF                = 'errConf';
+    const ERROR_CONF_NO_JSON        = 'errJSON';
+    const ERROR_CONF_NO_VOL         = 'errNoVolumes';
+    const ERROR_INV_PARAMS          = 'errCmdParams';
+    const ERROR_OPEN                = 'errOpen';
+    const ERROR_DIR_NOT_FOUND       = 'errFolderNotFound';
+    const ERROR_FILE_NOT_FOUND      = 'errFileNotFound';     // 'File not found.'
+    const ERROR_TRGDIR_NOT_FOUND    = 'errTrgFolderNotFound'; // 'Target folder "$1" not found.'
+    const ERROR_NOT_DIR             = 'errNotFolder';
+    const ERROR_NOT_FILE            = 'errNotFile';
+    const ERROR_PERM_DENIED         = 'errPerm';
+    const ERROR_LOCKED              = 'errLocked';        // '"$1" is locked and can not be renamed, moved or removed.'
+    const ERROR_EXISTS              = 'errExists';        // 'File named "$1" already exists.'
+    const ERROR_INVALID_NAME        = 'errInvName';       // 'Invalid file name.'
+    const ERROR_MKDIR               = 'errMkdir';
+    const ERROR_MKFILE              = 'errMkfile';
+    const ERROR_RENAME              = 'errRename';
+    const ERROR_COPY                = 'errCopy';
+    const ERROR_MOVE                = 'errMove';
+    const ERROR_COPY_FROM           = 'errCopyFrom';
+    const ERROR_COPY_TO             = 'errCopyTo';
+    const ERROR_COPY_ITSELF         = 'errCopyInItself';
+    const ERROR_REPLACE             = 'errReplace';          // 'Unable to replace "$1".'
+    const ERROR_RM                  = 'errRm';               // 'Unable to remove "$1".'
+    const ERROR_RM_SRC              = 'errRmSrc';            // 'Unable remove source file(s)'
+    const ERROR_UPLOAD              = 'errUpload';           // 'Upload error.'
+    const ERROR_UPLOAD_FILE         = 'errUploadFile';       // 'Unable to upload "$1".'
+    const ERROR_UPLOAD_NO_FILES     = 'errUploadNoFiles';    // 'No files found for upload.'
+    const ERROR_UPLOAD_TOTAL_SIZE   = 'errUploadTotalSize';  // 'Data exceeds the maximum allowed size.'
+    const ERROR_UPLOAD_FILE_SIZE    = 'errUploadFileSize';   // 'File exceeds maximum allowed size.'
+    const ERROR_UPLOAD_FILE_MIME    = 'errUploadMime';       // 'File type not allowed.'
+    const ERROR_UPLOAD_TRANSFER     = 'errUploadTransfer';   // '"$1" transfer error.'
+    const ERROR_ACCESS_DENIED       = 'errAccess';
+    const ERROR_NOT_REPLACE         = 'errNotReplace';       // Object "$1" already exists at this location and can not be replaced with object of another type.
+    const ERROR_SAVE                = 'errSave';
+    const ERROR_EXTRACT             = 'errExtract';
+    const ERROR_ARCHIVE             = 'errArchive';
+    const ERROR_NOT_ARCHIVE         = 'errNoArchive';
+    const ERROR_ARCHIVE_TYPE        = 'errArcType';
+    const ERROR_ARC_SYMLINKS        = 'errArcSymlinks';
+    const ERROR_ARC_MAXSIZE         = 'errArcMaxSize';
+    const ERROR_RESIZE              = 'errResize';
+    const ERROR_UNSUPPORT_TYPE      = 'errUsupportType';
+    const ERROR_CONV_UTF8           = 'errConvUTF8';
+    const ERROR_NOT_UTF8_CONTENT    = 'errNotUTF8Content';
+    const ERROR_NETMOUNT            = 'errNetMount';
+    const ERROR_NETUNMOUNT          = 'errNetUnMount';
+    const ERROR_NETMOUNT_NO_DRIVER  = 'errNetMountNoDriver';
+    const ERROR_NETMOUNT_FAILED     = 'errNetMountFailed';
+    const ERROR_SESSION_EXPIRES 	= 'errSessionExpires';
+    const ERROR_CREATING_TEMP_DIR 	= 'errCreatingTempDir';
+    const ERROR_FTP_DOWNLOAD_FILE 	= 'errFtpDownloadFile';
+    const ERROR_FTP_UPLOAD_FILE 	= 'errFtpUploadFile';
+    const ERROR_FTP_MKDIR 		    = 'errFtpMkdir';
+    const ERROR_ARCHIVE_EXEC 	    = 'errArchiveExec';
+    const ERROR_EXTRACT_EXEC 	    = 'errExtractExec';
 
     /**
      * API version number
@@ -49,9 +113,14 @@ class ElFinder {
     /**
      * Default root (storage)
      *
-     * @var ElFinderStorageDriver
+     * @var ElFinderVolumeDriver
      **/
     protected $default = null;
+
+    /**
+     * @var Logger
+     */
+    protected $log;
 
     /**
      * Commands and required arguments list
@@ -59,31 +128,32 @@ class ElFinder {
      * @var array
      **/
     protected $commands = array(
-        'open'      => array('target' => false, 'tree' => false, 'init' => false, 'mimes' => false),
-        'ls'        => array('target' => true, 'mimes' => false),
-        'tree'      => array('target' => true),
-        'parents'   => array('target' => true),
-        'tmb'       => array('targets' => true),
-        'file'      => array('target' => true, 'download' => false),
-        'size'      => array('targets' => true),
-        'mkdir'     => array('target' => true, 'name' => true),
-        'mkfile'    => array('target' => true, 'name' => true, 'mimes' => false),
-        'rm'        => array('targets' => true),
-        'rename'    => array('target' => true, 'name' => true, 'mimes' => false),
+        'open' => array('target' => false, 'tree' => false, 'init' => false, 'mimes' => false),
+        'ls' => array('target' => true, 'mimes' => false),
+        'tree' => array('target' => true),
+        'parents' => array('target' => true),
+        'tmb' => array('targets' => true),
+        'file' => array('target' => true, 'download' => false),
+        'size' => array('targets' => true),
+        'mkdir' => array('target' => true, 'name' => true),
+        'mkfile' => array('target' => true, 'name' => true, 'mimes' => false),
+        'rm' => array('targets' => true),
+        'rename' => array('target' => true, 'name' => true, 'mimes' => false),
         'duplicate' => array('targets' => true, 'suffix' => false),
-        'paste'     => array('dst' => true, 'targets' => true, 'cut' => false, 'mimes' => false),
-        'upload'    => array('target' => true, 'FILES' => true, 'mimes' => false, 'html' => false, 'upload' => false, 'name' => false, 'upload_path' => false, 'chunk' => false, 'cid' => false),
-        'get'       => array('target' => true, 'conv' => false),
-        'put'       => array('target' => true, 'content' => '', 'mimes' => false),
-        'archive'   => array('targets' => true, 'type' => true, 'mimes' => false),
-        'extract'   => array('target' => true, 'mimes' => false),
-        'search'    => array('q' => true, 'mimes' => false),
-        'info'      => array('targets' => true),
-        'dim'       => array('target' => true),
-        'resize'    => array('target' => true, 'width' => true, 'height' => true, 'mode' => false, 'x' => false, 'y' => false, 'degree' => false),
-        'netmount'  => array('protocol' => true, 'host' => true, 'path' => false, 'port' => false, 'user' => true, 'pass' => true, 'alias' => false, 'options' => false),
-        'url'       => array('target' => true, 'options' => false),
-        'callback'  => array('node' => true, 'json' => false, 'bind' => false, 'done' => false)
+        'paste' => array('dst' => true, 'targets' => true, 'cut' => false, 'mimes' => false),
+        'upload' => array('target' => true, 'FILES' => true, 'mimes' => false, 'html' => false, 'upload' => false, 'name' => false, 'upload_path' => false, 'chunk' => false, 'cid' => false),
+        'get' => array('target' => true, 'conv' => false),
+        'put' => array('target' => true, 'content' => '', 'mimes' => false),
+        'archive' => array('targets' => true, 'type' => true, 'mimes' => false),
+        'extract' => array('target' => true, 'mimes' => false),
+        'search' => array('q' => true, 'mimes' => false),
+        'info' => array('targets' => true),
+        'dim' => array('target' => true),
+        'resize' => array('target' => true, 'width' => true, 'height' => true, 'mode' => false, 'x' => false, 'y' => false, 'degree' => false),
+        'netmount' => array('protocol' => true, 'host' => true, 'path' => false, 'port' => false, 'user' => true, 'pass' => true, 'alias' => false, 'options' => false),
+        'url' => array('target' => true, 'options' => false),
+        'callback' => array('node' => true, 'json' => false, 'bind' => false, 'done' => false),
+        'pixlr' => array('target' => false, 'node' => false, 'image' => false, 'type' => false, 'title' => false)
     );
 
     /**
@@ -106,6 +176,7 @@ class ElFinder {
      * @var string
      **/
     protected $time = 0;
+
     /**
      * Is elFinder init correctly?
      *
@@ -134,13 +205,6 @@ class ElFinder {
     protected $uploadDebug = '';
 
     /**
-     * Errors from not mounted volumes
-     *
-     * @var array
-     **/
-    public $mountErrors = array();
-
-    /**
      * URL for callback output window for CORS
      * redirect to this URL when callback output
      *
@@ -148,100 +212,62 @@ class ElFinder {
      */
     protected $callbackWindowURL = '';
 
-    // Errors messages
-    const ERROR_UNKNOWN           = 'errUnknown';
-    const ERROR_UNKNOWN_CMD       = 'errUnknownCmd';
-    const ERROR_CONF              = 'errConf';
-    const ERROR_CONF_NO_JSON      = 'errJSON';
-    const ERROR_CONF_NO_VOL       = 'errNoVolumes';
-    const ERROR_INV_PARAMS        = 'errCmdParams';
-    const ERROR_OPEN              = 'errOpen';
-    const ERROR_DIR_NOT_FOUND     = 'errFolderNotFound';
-    const ERROR_FILE_NOT_FOUND    = 'errFileNotFound';     // 'File not found.'
-    const ERROR_TRGDIR_NOT_FOUND  = 'errTrgFolderNotFound'; // 'Target folder "$1" not found.'
-    const ERROR_NOT_DIR           = 'errNotFolder';
-    const ERROR_NOT_FILE          = 'errNotFile';
-    const ERROR_PERM_DENIED       = 'errPerm';
-    const ERROR_LOCKED            = 'errLocked';        // '"$1" is locked and can not be renamed, moved or removed.'
-    const ERROR_EXISTS            = 'errExists';        // 'File named "$1" already exists.'
-    const ERROR_INVALID_NAME      = 'errInvName';       // 'Invalid file name.'
-    const ERROR_MKDIR             = 'errMkdir';
-    const ERROR_MKFILE            = 'errMkfile';
-    const ERROR_RENAME            = 'errRename';
-    const ERROR_COPY              = 'errCopy';
-    const ERROR_MOVE              = 'errMove';
-    const ERROR_COPY_FROM         = 'errCopyFrom';
-    const ERROR_COPY_TO           = 'errCopyTo';
-    const ERROR_COPY_ITSELF       = 'errCopyInItself';
-    const ERROR_REPLACE           = 'errReplace';          // 'Unable to replace "$1".'
-    const ERROR_RM                = 'errRm';               // 'Unable to remove "$1".'
-    const ERROR_RM_SRC            = 'errRmSrc';            // 'Unable remove source file(s)'
-    const ERROR_UPLOAD            = 'errUpload';           // 'Upload error.'
-    const ERROR_UPLOAD_FILE       = 'errUploadFile';       // 'Unable to upload "$1".'
-    const ERROR_UPLOAD_NO_FILES   = 'errUploadNoFiles';    // 'No files found for upload.'
-    const ERROR_UPLOAD_TOTAL_SIZE = 'errUploadTotalSize';  // 'Data exceeds the maximum allowed size.'
-    const ERROR_UPLOAD_FILE_SIZE  = 'errUploadFileSize';   // 'File exceeds maximum allowed size.'
-    const ERROR_UPLOAD_FILE_MIME  = 'errUploadMime';       // 'File type not allowed.'
-    const ERROR_UPLOAD_TRANSFER   = 'errUploadTransfer';   // '"$1" transfer error.'
-    // const ERROR_ACCESS_DENIED     = 'errAccess';
-    const ERROR_NOT_REPLACE       = 'errNotReplace';       // Object "$1" already exists at this location and can not be replaced with object of another type.
-    const ERROR_SAVE              = 'errSave';
-    const ERROR_EXTRACT           = 'errExtract';
-    const ERROR_ARCHIVE           = 'errArchive';
-    const ERROR_NOT_ARCHIVE       = 'errNoArchive';
-    const ERROR_ARCHIVE_TYPE      = 'errArcType';
-    const ERROR_ARC_SYMLINKS      = 'errArcSymlinks';
-    const ERROR_ARC_MAXSIZE       = 'errArcMaxSize';
-    const ERROR_RESIZE            = 'errResize';
-    const ERROR_UNSUPPORT_TYPE    = 'errUsupportType';
-    const ERROR_CONV_UTF8         = 'errConvUTF8';
-    const ERROR_NOT_UTF8_CONTENT  = 'errNotUTF8Content';
-    const ERROR_NETMOUNT          = 'errNetMount';
-    const ERROR_NETUNMOUNT        = 'errNetUnMount';
-    const ERROR_NETMOUNT_NO_DRIVER = 'errNetMountNoDriver';
-    const ERROR_NETMOUNT_FAILED       = 'errNetMountFailed';
-
-    const ERROR_SESSION_EXPIRES 	= 'errSessionExpires';
-
-    const ERROR_CREATING_TEMP_DIR 	= 'errCreatingTempDir';
-    const ERROR_FTP_DOWNLOAD_FILE 	= 'errFtpDownloadFile';
-    const ERROR_FTP_UPLOAD_FILE 	= 'errFtpUploadFile';
-    const ERROR_FTP_MKDIR 		= 'errFtpMkdir';
-    const ERROR_ARCHIVE_EXEC 	= 'errArchiveExec';
-    const ERROR_EXTRACT_EXEC 	= 'errExtractExec';
+    /**
+     * @var
+     */
+    protected $options;
 
     /**
      * Constructor
      *
-     * @param  array  elFinder and roots configurations
-     * @return void
+     * @param array $options
+     * @param $volumes
+     * @param Logger $logger
      * @author Dmitry (dio) Levashov
-     **/
-    public function __construct($opts) {
+     */
+    public function __construct(array $options, array $volumes, Logger $logger)
+    {
+        $this->options = $options;
+        $this->log     = $logger;
+        $this->volumes = $volumes;
+
         if (session_id() == '') {
             session_start();
         }
 
-        $this->time  = $this->utime();
-        $this->debug = (isset($opts['debug']) && $opts['debug'] ? true : false);
-        $this->timeout = (isset($opts['timeout']) ? $opts['timeout'] : 0);
-        $this->netVolumesSessionKey = !empty($opts['netVolumesSessionKey'])? $opts['netVolumesSessionKey'] : 'elFinderNetVolumes';
-        $this->callbackWindowURL = (isset($opts['callbackWindowURL']) ? $opts['callbackWindowURL'] : '');
+        $this->time                 = $this->utime();
+        $this->debug                = (isset($options['debug']) && $options['debug'] ? true : false);
+        $this->timeout              = (isset($options['timeout']) ? $options['timeout'] : 0);
+        $this->netVolumesSessionKey = !empty($options['netVolumesSessionKey'])? $options['netVolumesSessionKey'] : 'ElFinderNetVolumes';
+        $this->callbackWindowURL    = (isset($options['callbackWindowURL']) ? $options['callbackWindowURL'] : '');
 
-        setlocale(LC_ALL, !empty($opts['locale']) ? $opts['locale'] : 'en_US.UTF-8');
+        setlocale(LC_ALL, !empty($options['locale']) ? $options['locale'] : 'en_US.UTF-8');
 
         // bind events listeners
-        if (!empty($opts['bind']) && is_array($opts['bind'])) {
+        $this->bindListeners($options);
+
+        // check for net volumes stored in session
+        foreach ($this->getNetVolumes() as $root) {
+            $options['roots'][] = $root;
+        }
+    }
+
+    /**
+     * @param $options
+     */
+    protected function bindListeners($options)
+    {
+        if (!empty($options['bind']) && is_array($options['bind'])) {
             $_req = $_SERVER["REQUEST_METHOD"] == 'POST' ? $_POST : $_GET;
             $_reqCmd = isset($_req['cmd']) ? $_req['cmd'] : '';
-            foreach ($opts['bind'] as $cmd => $handlers) {
+            foreach ($options['bind'] as $cmd => $handlers) {
                 $doRegist = (strpos($cmd, '*') !== false);
-                if (! $doRegist) {
+                if (!$doRegist) {
                     $_getcmd = create_function('$cmd', 'list($ret) = explode(\'.\', $cmd);return trim($ret);');
                     $doRegist = ($_reqCmd && in_array($_reqCmd, array_map($_getcmd, explode(' ', $cmd))));
                 }
                 if ($doRegist) {
-                    if (! is_array($handlers) || is_object($handlers[0])) {
+                    if (!is_array($handlers) || is_object($handlers[0])) {
                         $handlers = array($handlers);
                     }
                     foreach($handlers as $handler) {
@@ -262,52 +288,26 @@ class ElFinder {
                 }
             }
         }
-
-        if (!isset($opts['roots']) || !is_array($opts['roots'])) {
-            $opts['roots'] = array();
-        }
-
-        // check for net volumes stored in session
-        foreach ($this->getNetVolumes() as $root) {
-            $opts['roots'][] = $root;
-        }
-
-        // "mount" volumes
-        $this->mountVolumes($opts);
-
-        // if at least one redable volume - ii desu >_<
-        $this->loaded = !empty($this->default);
     }
 
+    /**
+     * @param ElFinderVolumeDriver $volume
+     * @return bool
+     */
+    public function setDefault(ElFinderVolumeDriver $volume)
+    {
+        $this->default = $volume;
+        $this->loaded  = !empty($this->default);
+
+        return $this->loaded;
+    }
 
     /**
-     * Mount volumes
-     *
-     * Instantiate corresponding driver class and
-     * add it to the list of volumes.
-     *
-     * @param array $opts
+     * @return ElFinderVolumeDriver
      */
-    protected function mountVolumes($opts)
+    public function getDefault()
     {
-        foreach ($opts['roots'] as $i => $o) {
-            $class = 'FM\ElFinderPHP\Driver\ElFinderVolume'.(isset($o['driver']) ? $o['driver'] : '');
-            if (class_exists($class)) {
-                $volume = new $class();
-                if ($volume->mount($o)) {
-                // unique volume id (ends on "_") - used as prefix to files hash
-                    $id = $volume->id();
-                    $this->volumes[$id] = $volume;
-                    if (!$this->default && $volume->isReadable()) {
-                        $this->default = $this->volumes[$id];
-                    }
-                } else {
-                    $this->mountErrors[] = 'Driver "'.$class.'" : '.implode(' ', $volume->error());
-                }
-            } else {
-                $this->mountErrors[] = 'Driver "'.$class.'" does not exists';
-            }
-        }
+        return $this->default;
     }
 
     /**
@@ -316,26 +316,17 @@ class ElFinder {
      * @return bool
      * @author Dmitry (dio) Levashov
      **/
-    public function loaded() {
+    public function isLoaded() {
         return $this->loaded;
     }
 
-    /**
-     * Return version (api) number
-     *
-     * @return string
-     * @author Dmitry (dio) Levashov
-     **/
-    public function version() {
-        return $this->version;
-    }
 
     /**
      * Add handler to elFinder command
      *
      * @param  string  command name
      * @param  string|array  callback name or array(object, method)
-     * @return elFinder
+     * @return ElFinder
      * @author Dmitry (dio) Levashov
      **/
     public function bind($cmd, $handler) {
@@ -395,7 +386,7 @@ class ElFinder {
     /**
      * Return true if command exists
      *
-     * @param  string  command name
+     * @param  string command name
      * @return bool
      * @author Dmitry (dio) Levashov
      **/
@@ -406,8 +397,8 @@ class ElFinder {
     /**
      * Return root - file's owner (public func of volume())
      *
-     * @param  string  file hash
-     * @return elFinderStorageDriver
+     * @param  string file hash
+     * @return ElFinderVolumeDriver
      * @author Naoki Sawada
      */
     public function getVolume($hash) {
@@ -520,7 +511,6 @@ class ElFinder {
                 'memory'    => (function_exists('memory_get_peak_usage') ? ceil(memory_get_peak_usage()/1024).'Kb / ' : '').ceil(memory_get_usage()/1024).'Kb / '.ini_get('memory_limit'),
                 'upload'    => $this->uploadDebug,
                 'volumes'   => array(),
-                'mountErrors' => $this->mountErrors
             );
 
             foreach ($this->volumes as $id => $volume) {
@@ -557,6 +547,22 @@ class ElFinder {
      */
     protected function getNetVolumes() {
         return isset($_SESSION[$this->netVolumesSessionKey]) && is_array($_SESSION[$this->netVolumesSessionKey]) ? $_SESSION[$this->netVolumesSessionKey] : array();
+    }
+
+    /**
+     * @return array
+     */
+    public function getListeners()
+    {
+        return $this->listeners;
+    }
+
+    /**
+     * @param array $listeners
+     */
+    public function setListeners($listeners)
+    {
+        $this->listeners = $listeners;
     }
 
     /**
@@ -617,6 +623,10 @@ class ElFinder {
         return count($errors) ? $errors : array(self::ERROR_UNKNOWN);
     }
 
+    /**
+     * @param $args
+     * @return array
+     */
     protected function netmount($args) {
         $options  = array();
         $protocol = $args['protocol'];
@@ -731,6 +741,7 @@ class ElFinder {
         if (!$cwd) {
             return array('error' => $this->error(self::ERROR_OPEN, $hash, self::ERROR_DIR_NOT_FOUND));
         }
+
         if (!$cwd['read']) {
             return array('error' => $this->error(self::ERROR_OPEN, $hash, self::ERROR_PERM_DENIED));
         }
@@ -782,7 +793,6 @@ class ElFinder {
      **/
     protected function ls($args) {
         $target = $args['target'];
-
         if (($volume = $this->volume($target)) == false
             || ($list = $volume->ls($target)) === false) {
             return array('error' => $this->error(self::ERROR_OPEN, '#'.$target));
@@ -1462,7 +1472,6 @@ class ElFinder {
 
         // file extentions table by MIME
         $extTable = array_flip(array_unique($volume->getMimeTable()));
-
         if (empty($files)) {
             if (isset($args['upload']) && is_array($args['upload']) && ($tempDir = $this->getTempDir($volume->getTempPath()))) {
                 $names = array();
@@ -1926,7 +1935,7 @@ class ElFinder {
      * Return root - file's owner
      *
      * @param  string  file hash
-     * @return elFinderStorageDriver
+     * @return ElFinderVolumeDriver
      * @author Dmitry (dio) Levashov
      **/
     protected function volume($hash) {
@@ -1950,7 +1959,7 @@ class ElFinder {
     }
 
     /**
-     * Return fils hashes list
+     * Return files hashes list
      *
      * @param  array  $files  files info
      * @return array
@@ -1980,9 +1989,12 @@ class ElFinder {
         return array_merge($files, array());
     }
 
+    /**
+     * @return float
+     */
     protected function utime() {
         $time = explode(" ", microtime());
         return (double)$time[1] + (double)$time[0];
     }
 
-} // END class
+}
