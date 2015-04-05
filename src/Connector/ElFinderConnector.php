@@ -25,11 +25,12 @@ class ElFinderConnector {
 
     /**
      * @var Logger
+     * Monolog Logger
      */
     protected $log;
 
     /**
-     * @var
+     * @var ElFinderVolumeDriver
      */
     protected $defaultVolume;
 
@@ -46,8 +47,11 @@ class ElFinderConnector {
     protected $volumes = array();
 
     /**
-     * undocumented class variable
-     *
+     * @var Request
+     */
+    protected $request;
+
+    /**
      * @var string
      **/
     protected $header = 'Content-Type: application/json';
@@ -86,7 +90,7 @@ class ElFinderConnector {
      */
     public function getElFinder()
     {
-        if(!$this->volumes) {
+        if(empty($this->volumes)) {
             $this->setVolumes($this->mountVolumes($this->options));
         }
 
@@ -124,7 +128,7 @@ class ElFinderConnector {
 
     /**
      * @param $class
-     * @return ElFinderVolumeDriver
+     * @return ElFinderVolumeDriver|boolean
      */
     protected function createVolumeDriver($class)
     {
@@ -208,7 +212,6 @@ class ElFinderConnector {
 
         // telepat_mode: on
         if (!$cmd && $isPost) {
-            var_dump($src->has('cmd'));
             return $this->output(
                 array(
                     'error' => $this->ElFinder->error(ElFinder::ERROR_UPLOAD, ElFinder::ERROR_UPLOAD_TOTAL_SIZE),
