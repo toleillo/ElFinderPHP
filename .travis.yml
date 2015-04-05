@@ -19,8 +19,7 @@ matrix:
 install:
   - travis_retry composer install --no-interaction --prefer-source
 
-script:
-  - phpunit --coverage-text --verbose --coverage-clover=coverage.clover --coverage-html coverage
+script: phpunit --coverage-clover=clover.xml
 
 after_script:
   - wget https://scrutinizer-ci.com/ocular.phar
