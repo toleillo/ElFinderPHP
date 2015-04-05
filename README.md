@@ -1,9 +1,13 @@
 ElFinderPHP
 ===========
-[![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/?branch=master)
-[![Build Status](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/badges/build.png?b=master)](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/build-status/master)
-[![Code Coverage](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/badges/coverage.png?b=master)](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/?branch=master)
-[![Build Status](https://travis-ci.org/helios-ag/ElFinderPHP.svg)](https://travis-ci.org/helios-ag/ElFinderPHP)
+
+### Code Quality Assurance ###
+
+| SensioLabs Insight | Travis CI | Scrutinizer CI
+| ------------------ | --------- | --------------
+| [![SensioLabsInsight](https://insight.sensiolabs.com/projects/9f450002-74c1-4578-9220-c69e8e7c121f/big.png)](https://insight.sensiolabs.com/projects/9f450002-74c1-4578-9220-c69e8e7c121f) | [![Travis CI Status](https://travis-ci.org/helios-ag/ElFinderPHP.svg)](https://travis-ci.org/helios-ag/ElFinderPHP) | [![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/?branch=phpunit)
+                                                                                                                                                                                                                                                                                                                     [![Build Status](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/badges/build.png?b=master)](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/build-status/phpunit)
+                                                                                                                                                                                                                                                                                                                     [![Code Coverage](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/badges/coverage.png?b=master)](https://scrutinizer-ci.com/g/helios-ag/ElFinderPHP/?branch=phpunit)
 
 ElFinderPHP is PHP 5.3 modification of server side ElFinder.
 
