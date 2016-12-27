@@ -1,5 +1,5 @@
 {
-    "name": "helios-ag/fm-elfinder-php-connector",
+    "name": "toleillo/fm-elfinder-php-connector",
     "description": "ElFinder PHP backend, 5.4 compliant",
     "keywords": ["elfinder", "filemanager"],
     "homepage": "http://github.com/helios-ag/ElFinderPHP",
