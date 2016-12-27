@@ -620,7 +620,6 @@ class ElFinderVolumeS3 extends ElFinderVolumeDriver {
             'Bucket' => $this->options['bucket'],
             'Key' => $newkey,
             'Body' => $content,
-            'ACL' => CannedAcl::PUBLIC_READ,
             'ContentType' => self::$mimetypes[$ext]
         ]);
         return true;
